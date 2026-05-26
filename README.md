@@ -547,3 +547,48 @@ The goal is to keep a **single deployable backend service** while maintaining mo
 ## License
 
 This project is intended for internal or production-ready backend development and can be adapted based on project requirements.
+
+---
+
+## Deployment
+
+The backend is containerised with Docker and deployed to a Google Cloud VM via **GitHub Actions** on every push to `main` that touches the `backend/` directory.
+
+### High-level flow
+
+1. GitHub Actions builds the Docker image and pushes it to **Google Artifact Registry** (`us-central1`).
+2. The workflow SSHs into the VM, pulls the new image, and restarts the `backend` container.
+3. All secrets are injected at deploy time — nothing is hardcoded.
+
+### Create the Artifact Registry repository
+
+Run this once before the first deployment (replace `[REPO-NAME]` with your chosen name and set it as `GAR_REPO_NAME` in GitHub Secrets):
+
+```bash
+gcloud artifacts repositories create [REPO-NAME] \
+  --repository-format=docker \
+  --location=us-central1 \
+  --description="General Docker images"
+```
+
+### Required GitHub Secrets
+
+| Secret | Description |
+|--------|-------------|
+| `GCP_SA_KEY` | Google Cloud Service Account JSON key (base64 or raw JSON) |
+| `GCP_PROJECT_ID` | Google Cloud project ID |
+| `GAR_REPO_NAME` | Artifact Registry repository name |
+| `VM_IP` | External IP address of the deployment VM |
+| `SSH_USER` | SSH username on the VM |
+| `SSH_PRIVATE_KEY` | SSH private key for VM access |
+| `PROJECT_NAME` | Application name (`PROJECT_NAME` env var) |
+| `BACKEND_CORS_ORIGINS` | Allowed CORS origins, e.g. `["https://yourapp.com"]` |
+| `DATABASE_URL` | PostgreSQL connection string (`postgresql+asyncpg://...`) |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
+| `GOOGLE_REDIRECT_URI` | OAuth redirect URI registered in Google Console |
+| `JWT_SECRET_KEY` | Secret key for signing JWTs |
+| `JWT_ALGORITHM` | JWT algorithm (e.g. `HS256`) |
+| `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | Access token lifetime in minutes |
+| `JWT_REFRESH_TOKEN_EXPIRE_DAYS` | Refresh token lifetime in days |
+| `FRONTEND_URL` | Frontend base URL (used for CORS and redirects) |

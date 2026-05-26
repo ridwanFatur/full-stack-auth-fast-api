@@ -1,0 +1,122 @@
+name: Backend Deploy
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    name: Build, Push, and Deploy Backend
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout ────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Authenticate to Google Cloud ────────────────────────────────────
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      # ── 3. Set up gcloud CLI ────────────────────────────────────────────────
+      - name: Set up gcloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+
+      # ── 4. Configure Docker for Artifact Registry ───────────────────────────
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      # ── 5. Build and push Docker image ──────────────────────────────────────
+      - name: Build and push Docker image
+        env:
+          IMAGE: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.GAR_REPO_NAME }}/backend
+        run: |
+          docker build \
+            --tag "$IMAGE:${{ github.sha }}" \
+            --tag "$IMAGE:latest" \
+            ./backend
+
+          docker push "$IMAGE:${{ github.sha }}"
+          docker push "$IMAGE:latest"
+
+      # ── 6. Generate short-lived Docker auth token ────────────────────────────
+      - name: Generate Docker auth token
+        id: docker_token
+        run: |
+          TOKEN=$(gcloud auth print-access-token)
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      # ── 7. SSH into VM, pull image, and restart container ───────────────────
+      - name: Deploy to VM
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          IMAGE: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.GAR_REPO_NAME }}/backend:${{ github.sha }}
+          DOCKER_TOKEN: ${{ steps.docker_token.outputs.token }}
+          # ── backend env vars ──────────────────────────────────────────────
+          PROJECT_NAME: ${{ secrets.PROJECT_NAME }}
+          BACKEND_CORS_ORIGINS: ${{ secrets.BACKEND_CORS_ORIGINS }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REDIRECT_URI: ${{ secrets.GOOGLE_REDIRECT_URI }}
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
+          JWT_ALGORITHM: ${{ secrets.JWT_ALGORITHM }}
+          JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${{ secrets.JWT_ACCESS_TOKEN_EXPIRE_MINUTES }}
+          JWT_REFRESH_TOKEN_EXPIRE_DAYS: ${{ secrets.JWT_REFRESH_TOKEN_EXPIRE_DAYS }}
+          FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
+        with:
+          host: ${{ secrets.VM_IP }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: >
+            IMAGE,DOCKER_TOKEN,
+            PROJECT_NAME,BACKEND_CORS_ORIGINS,DATABASE_URL,
+            GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,GOOGLE_REDIRECT_URI,
+            JWT_SECRET_KEY,JWT_ALGORITHM,JWT_ACCESS_TOKEN_EXPIRE_MINUTES,
+            JWT_REFRESH_TOKEN_EXPIRE_DAYS,FRONTEND_URL
+          script: |
+            set -e
+
+            # Authenticate Docker on the VM using the short-lived token
+            echo "$DOCKER_TOKEN" | docker login \
+              -u oauth2accesstoken \
+              --password-stdin \
+              https://us-central1-docker.pkg.dev
+
+            # Pull the new image
+            docker pull "$IMAGE"
+
+            # Write env file (overwrite on every deploy)
+            cat > /opt/backend/.env <<EOF
+            PROJECT_NAME=${PROJECT_NAME}
+            BACKEND_CORS_ORIGINS=${BACKEND_CORS_ORIGINS}
+            DATABASE_URL=${DATABASE_URL}
+            GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+            GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+            GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI}
+            JWT_SECRET_KEY=${JWT_SECRET_KEY}
+            JWT_ALGORITHM=${JWT_ALGORITHM}
+            JWT_ACCESS_TOKEN_EXPIRE_MINUTES=${JWT_ACCESS_TOKEN_EXPIRE_MINUTES}
+            JWT_REFRESH_TOKEN_EXPIRE_DAYS=${JWT_REFRESH_TOKEN_EXPIRE_DAYS}
+            FRONTEND_URL=${FRONTEND_URL}
+            EOF
+            chmod 600 /opt/backend/.env
+
+            # Stop and remove old container (safe to fail if not running)
+            docker stop backend || true
+            docker rm   backend || true
+
+            # Start new container
+            docker run -d \
+              --name backend \
+              --restart unless-stopped \
+              --env-file /opt/backend/.env \
+              -p 8000:8000 \
+              "$IMAGE"
+
+            # Remove dangling images to reclaim disk space
+            docker image prune -f
