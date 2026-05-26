@@ -90,6 +90,9 @@ jobs:
             # Pull the new image
             docker pull "$IMAGE"
 
+            # Ensure the app directory exists (first deploy, or path changed)
+            mkdir -p /opt/backend
+
             # Write env file (overwrite on every deploy)
             cat > /opt/backend/.env <<EOF
             PROJECT_NAME=${PROJECT_NAME}
