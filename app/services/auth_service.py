@@ -6,9 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import verify_refresh_token
 from app.repositories.refresh_token_repository import RefreshTokenRepository
 from app.repositories.user_repository import UserRepository
-from app.schemas.auth import RefreshTokenResponse, TokenResponse
+from app.schemas.auth import GoogleAuthUrlResponse, RefreshTokenResponse, TokenResponse
 from app.schemas.user import UserResponse
-from app.services.google_oauth_service import GoogleOAuthService
+from app.services.google_oauth_service import GoogleOAuthService, GoogleUserInfo
 from app.services.jwt_service import JWTService
 
 
@@ -25,15 +25,45 @@ class AuthService:
         self.google_service = GoogleOAuthService()
         self.jwt_service = JWTService(db)
 
+    # ------------------------------------------------------------------ #
+    #  Google OAuth — auth URL                                             #
+    # ------------------------------------------------------------------ #
+
+    def get_google_auth_url(self) -> GoogleAuthUrlResponse:
+        """
+        Generate the Google OAuth authorization URL and a CSRF state token.
+        The caller (Next.js route handler) stores the state in an httpOnly cookie.
+        """
+        url, state = self.google_service.get_auth_url()
+        return GoogleAuthUrlResponse(url=url, state=state)
+
+    # ------------------------------------------------------------------ #
+    #  Google OAuth — token flows                                          #
+    # ------------------------------------------------------------------ #
+
     async def google_login(self, id_token: str) -> TokenResponse:
         """
-        Authenticate user via Google ID token.
-        Creates user if not exists, updates last login, generates JWT tokens.
+        Authenticate via a Google ID token (e.g. popup / direct token flow).
         """
-        # Verify Google ID token server-side
         google_user = await self.google_service.verify_id_token(id_token)
+        return await self._authenticate_google_user(google_user)
 
-        # Find or create user
+    async def google_callback(self, code: str) -> TokenResponse:
+        """
+        Authenticate via a Google authorization code (redirect flow).
+        Exchanges the code server-side; never exposes GOOGLE_CLIENT_SECRET.
+        """
+        google_user = await self.google_service.exchange_code(code)
+        return await self._authenticate_google_user(google_user)
+
+    # ------------------------------------------------------------------ #
+    #  Shared authentication logic                                         #
+    # ------------------------------------------------------------------ #
+
+    async def _authenticate_google_user(self, google_user: GoogleUserInfo) -> TokenResponse:
+        """
+        Find or create a user from verified Google identity, issue JWT tokens.
+        """
         user = await self.user_repo.get_by_google_id(google_user.google_id)
 
         if not user:
@@ -44,10 +74,7 @@ class AuthService:
                 profile_picture=google_user.profile_picture,
             )
 
-        # Update last login timestamp
         user = await self.user_repo.update_last_login(user)
-
-        # Generate access and refresh tokens
         access_token, refresh_token = await self.jwt_service.generate_tokens(user)
 
         return TokenResponse(
@@ -57,34 +84,32 @@ class AuthService:
             user=UserResponse.model_validate(user),
         )
 
+    # ------------------------------------------------------------------ #
+    #  Token refresh + logout                                              #
+    # ------------------------------------------------------------------ #
+
     async def refresh_access_token(self, refresh_token: str) -> RefreshTokenResponse:
         """
         Validate refresh token, revoke it, and issue a new access + refresh token pair.
         Implements token rotation for security.
         """
-        # Verify JWT signature and type
         user_id_str = verify_refresh_token(refresh_token)
         if not user_id_str:
             raise ValueError("Invalid refresh token")
 
-        # Verify token exists in DB and is not revoked
         stored_token = await self.refresh_token_repo.get_by_token(refresh_token)
         if not stored_token:
             raise ValueError("Refresh token not found or already revoked")
 
-        # Check expiry
         if stored_token.expires_at < datetime.now(timezone.utc):
             raise ValueError("Refresh token has expired")
 
-        # Revoke used token (rotation)
         await self.refresh_token_repo.revoke(stored_token)
 
-        # Fetch user
         user = await self.user_repo.get_by_id(uuid.UUID(user_id_str))
         if not user:
             raise ValueError("User not found")
 
-        # Generate new token pair
         new_access_token, new_refresh_token = await self.jwt_service.generate_tokens(user)
 
         return RefreshTokenResponse(

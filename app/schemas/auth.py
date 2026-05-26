@@ -7,6 +7,15 @@ class GoogleLoginRequest(BaseModel):
     id_token: str
 
 
+class GoogleCallbackRequest(BaseModel):
+    code: str
+
+
+class GoogleAuthUrlResponse(BaseModel):
+    url: str
+    state: str
+
+
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
