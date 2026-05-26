@@ -113,7 +113,7 @@ jobs:
             docker run --rm \
               --env-file "$HOME/app/.env" \
               "$IMAGE" \
-              alembic upgrade head
+              /app/.venv/bin/alembic upgrade head
 
             # Stop and remove old container (safe to fail if not running)
             docker stop backend || true
