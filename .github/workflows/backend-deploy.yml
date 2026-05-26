@@ -37,7 +37,7 @@ jobs:
           docker build \
             --tag "$IMAGE:${{ github.sha }}" \
             --tag "$IMAGE:latest" \
-            ./backend
+            .
 
           docker push "$IMAGE:${{ github.sha }}"
           docker push "$IMAGE:latest"
@@ -91,7 +91,7 @@ jobs:
             docker pull "$IMAGE"
 
             # Write env file (overwrite on every deploy)
-            cat > /opt/backend/.env <<EOF
+            cat > /opt/.env <<EOF
             PROJECT_NAME=${PROJECT_NAME}
             BACKEND_CORS_ORIGINS=${BACKEND_CORS_ORIGINS}
             DATABASE_URL=${DATABASE_URL}
@@ -104,7 +104,7 @@ jobs:
             JWT_REFRESH_TOKEN_EXPIRE_DAYS=${JWT_REFRESH_TOKEN_EXPIRE_DAYS}
             FRONTEND_URL=${FRONTEND_URL}
             EOF
-            chmod 600 /opt/backend/.env
+            chmod 600 /opt/.env
 
             # Stop and remove old container (safe to fail if not running)
             docker stop backend || true
@@ -114,7 +114,7 @@ jobs:
             docker run -d \
               --name backend \
               --restart unless-stopped \
-              --env-file /opt/backend/.env \
+              --env-file /opt/.env \
               -p 8000:8000 \
               "$IMAGE"
 
