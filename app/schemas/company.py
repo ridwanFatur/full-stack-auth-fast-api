@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr, HttpUrl, field_validator
+from pydantic import BaseModel
 
 
 class CompanyBase(BaseModel):
@@ -22,7 +22,7 @@ class CompanyBase(BaseModel):
     state: Optional[str] = None
     postal_code: Optional[str] = None
     country: Optional[str] = None
-    employee_count: Optional[int] = None
+    employee_range: Optional[str] = None  # "1-10" | "10-50" | "50-100" | ">100"
     founded_at: Optional[date] = None
     status: str = "active"
 
@@ -48,7 +48,7 @@ class CompanyUpdate(BaseModel):
     state: Optional[str] = None
     postal_code: Optional[str] = None
     country: Optional[str] = None
-    employee_count: Optional[int] = None
+    employee_range: Optional[str] = None
     founded_at: Optional[date] = None
     status: Optional[str] = None
 

@@ -2,7 +2,7 @@ import uuid
 from datetime import date
 from typing import TYPE_CHECKING, List, Optional
 
-from sqlalchemy import Date, ForeignKey, Integer, String, Text
+from sqlalchemy import Date, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -54,7 +54,9 @@ class Company(Base, TimestampSoftDeleteMixin):
     country: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
     # Stats / Meta
-    employee_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    employee_range: Mapped[Optional[str]] = mapped_column(
+        String(20), nullable=True
+    )  # "1-10" | "10-50" | "50-100" | ">100"
     founded_at: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
 
