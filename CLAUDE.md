@@ -13,6 +13,8 @@ Features:
 - HR modules: Attendance, Leave, Payroll, Performance (full CRUD per employee)
 - Supabase Storage for file uploads (logo, employee photo, user avatar)
 - Soft-delete on all entities
+- **AI Chat** — persistent chat sessions with streaming WebSocket + LangGraph ReAct agent
+- **MCP Integration** — LangGraph connects to FastMCP PostgreSQL server for DB tools
 
 Architecture: **monolithic but modular**. Keep it simple; avoid overengineering.
 
@@ -203,6 +205,7 @@ Migration chain (in order):
 1. `3772ce949c9b_initial_migration.py` — users, refresh_tokens, companies, employees
 2. `b4e8f2a91c3d_add_hr_tables.py` — attendances, leaves, payrolls, performances
 3. `c7a1d3e85f02_employee_range.py` — replaces `employee_count` (Integer) with `employee_range` (String 20)
+4. `d9b4e7f12a3c_add_chat_tables.py` — chats, chat_messages
 
 Commands (run from `backend/`):
 
@@ -312,6 +315,64 @@ alembic downgrade -1
 
 # Sanity-check registered routes
 python -c "from app.main import app; [print(list(r.methods), r.path) for r in app.routes if hasattr(r,'methods')]"
+```
+
+---
+
+## AI Chat
+
+### Overview
+
+The chat system uses a **LangGraph ReAct agent** backed by Groq (llama-3.3-70b-versatile) via an OpenAI-compatible API. It connects to the MCP server for database tools and streams responses token-by-token over WebSocket.
+
+### New Files
+
+| File | Responsibility |
+|------|---------------|
+| `app/models/chat.py` | `Chat` model — one per user session |
+| `app/models/chat_message.py` | `ChatMessage` — role + content per turn |
+| `app/schemas/chat.py` | Request/response Pydantic models |
+| `app/repositories/chat_repository.py` | Chat + message DB access |
+| `app/services/chat_service.py` | Chat CRUD orchestration |
+| `app/services/ai_service.py` | LangGraph agent + MCP integration + streaming |
+| `app/api/v1/chats/router.py` | REST endpoints + WebSocket handler |
+
+### WebSocket Protocol
+
+**Endpoint**: `ws://host/api/v1/chats/{chat_id}/ws?token=<jwt>`
+
+Authentication is via query param `token` (JWT access token).
+
+```
+Client → Server: {"message": "user text"}
+Server → Client: {"type": "chunk", "content": "token..."}   (repeated)
+Server → Client: {"type": "done", "content": "full", "message_id": "uuid", "chat_title": "..."}
+Server → Client: {"type": "error", "detail": "message"}     (on error)
+```
+
+### AI Service (`app/services/ai_service.py`)
+
+- `stream_agent_response(history, user_message)` — async generator yielding token strings
+- Uses `langgraph.prebuilt.create_react_agent` with Groq LLM
+- Loads MCP tools from `MCP_SERVER_URL` via `langchain-mcp-adapters`; falls back to no tools if server is offline
+- History: last 40 messages from DB are passed as LangChain `HumanMessage`/`AIMessage`
+
+### New Chat REST Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/chats` | List user's chats (newest first) |
+| POST | `/api/v1/chats` | Create new chat |
+| GET | `/api/v1/chats/{id}` | Chat detail with messages |
+| PATCH | `/api/v1/chats/{id}` | Rename chat |
+| DELETE | `/api/v1/chats/{id}` | Soft-delete chat |
+| WS | `/api/v1/chats/{id}/ws?token=...` | Stream AI chat |
+
+### New Environment Variables
+
+```env
+GROQ_API_KEY=         # Groq API key (https://console.groq.com)
+MCP_SERVER_URL=http://localhost:8001   # FastMCP server URL
 ```
 
 ---

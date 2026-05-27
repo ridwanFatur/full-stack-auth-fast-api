@@ -9,6 +9,10 @@ dependencies = [
     "asyncpg>=0.31.0",
     "fastapi>=0.136.3",
     "google-auth>=2.53.0",
+    "langchain>=0.3.0",
+    "langchain-openai>=0.2.0",
+    "langgraph>=0.2.0",
+    "langchain-mcp-adapters>=0.1.0",
     "pydantic-settings>=2.14.1",
     "python-jose[cryptography]>=3.5.0",
     "python-multipart>=0.0.20",
@@ -16,4 +20,5 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.50",
     "supabase>=2.10.0",
     "uvicorn[standard]>=0.48.0",
+    "websockets>=13.0",
 ]

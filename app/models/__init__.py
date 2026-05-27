@@ -4,6 +4,8 @@
 # resolved and raise InvalidRequestError at runtime.
 
 from app.models.attendance import Attendance  # noqa: F401
+from app.models.chat import Chat  # noqa: F401
+from app.models.chat_message import ChatMessage  # noqa: F401
 from app.models.company import Company  # noqa: F401
 from app.models.employee import Employee  # noqa: F401
 from app.models.leave import Leave  # noqa: F401

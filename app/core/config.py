@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     SUPABASE_KEY: str = ""
     SUPABASE_STORAGE_BUCKET: str = "hr-assets"
 
+    # AI / LLM (Groq)
+    GROQ_API_KEY: str = ""
+
+    # MCP Server URL (FastMCP PostgreSQL tools)
+    MCP_SERVER_URL: str = "http://localhost:8001"
+
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod
     def parse_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
