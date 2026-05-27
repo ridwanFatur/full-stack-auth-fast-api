@@ -71,7 +71,7 @@ class AuthService:
                 google_id=google_user.google_id,
                 email=google_user.email,
                 full_name=google_user.full_name,
-                profile_picture=google_user.profile_picture,
+                profile_picture=None,  # do not import Google profile picture
             )
 
         user = await self.user_repo.update_last_login(user)

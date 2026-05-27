@@ -53,3 +53,9 @@ class UserRepository:
         await self.db.flush()
         await self.db.refresh(user)
         return user
+
+    async def update_profile_picture(self, user: User, url: Optional[str]) -> User:
+        user.profile_picture = url
+        await self.db.flush()
+        await self.db.refresh(user)
+        return user
