@@ -10,6 +10,7 @@ from app.core.database import Base
 from app.models.mixins import TimestampSoftDeleteMixin
 
 if TYPE_CHECKING:
+    from app.models.company import Company
     from app.models.refresh_token import RefreshToken
 
 
@@ -42,4 +43,7 @@ class User(Base, TimestampSoftDeleteMixin):
 
     refresh_tokens: Mapped[List["RefreshToken"]] = relationship(
         "RefreshToken", back_populates="user", lazy="select"
+    )
+    companies: Mapped[List["Company"]] = relationship(
+        "Company", back_populates="user", lazy="select"
     )

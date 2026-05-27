@@ -19,6 +19,12 @@ from app.core.database import Base  # noqa: F401 — needed for metadata
 from app.models import mixins  # noqa: F401
 from app.models.user import User  # noqa: F401
 from app.models.refresh_token import RefreshToken  # noqa: F401
+from app.models.company import Company  # noqa: F401
+from app.models.employee import Employee  # noqa: F401
+from app.models.attendance import Attendance  # noqa: F401
+from app.models.leave import Leave  # noqa: F401
+from app.models.payroll import Payroll  # noqa: F401
+from app.models.performance import Performance  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
