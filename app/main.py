@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -6,6 +8,12 @@ import app.models  # noqa: F401 — registers all ORM models in SQLAlchemy's map
 from app.api.v1.router import router as api_v1_router
 from app.core.config import settings
 from app.agents.agent import Agent
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s — %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
