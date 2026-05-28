@@ -39,7 +39,11 @@ class Settings(BaseSettings):
 
     # MCP Server URL (FastMCP PostgreSQL tools)
     MCP_SERVER_URL: str = "http://localhost:8001"
-
+    
+    # Stripe
+    STRIPE_PUSHIBLE_KEY: str = ""
+    STRIPE_SECRET_KEY: str = ""
+    
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod
     def parse_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
