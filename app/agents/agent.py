@@ -3,13 +3,14 @@ import logging
 from typing import AsyncGenerator, Optional
 
 from langchain_core.messages import HumanMessage
-from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-from psycopg_pool import AsyncConnectionPool
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.postgres import PostgresSaver
+from psycopg_pool import ConnectionPool
+
 from app.agents.react_graph import create_graph
 from app.agents.tools import load_mcp_tools
 from app.core.config import settings
-from langgraph.checkpoint.postgres import PostgresSaver
+
 logger = logging.getLogger(__name__)
 
 _agent: Optional["Agent"] = None
@@ -25,21 +26,22 @@ class Agent:
     async def create(cls) -> "Agent":
         conn_str = settings.DATABASE_URL.replace(
             "postgresql+asyncpg://", "postgresql://")
-        pool = AsyncConnectionPool(conninfo=conn_str, open=False)
-        await pool.open()
 
-        checkpointer = AsyncPostgresSaver(pool)
-        await checkpointer.setup()
-        
+        loop = asyncio.get_event_loop()
+        pool = ConnectionPool(conninfo=conn_str, open=False)
+        await loop.run_in_executor(None, pool.open)
+
+        checkpointer = PostgresSaver(pool)
+        await loop.run_in_executor(None, checkpointer.setup)
 
         tools = await load_mcp_tools()
         app = create_graph(
-            tools=tools, 
+            tools=tools,
             checkpointer=checkpointer
         )
 
         logger.info("Agent initialised with %d MCP tool(s)", len(tools))
-        return cls(pool, app)
+        return cls(checkpointer, app)
 
     def get_config(self, user_id: str, chat_id: str):
         config = {
