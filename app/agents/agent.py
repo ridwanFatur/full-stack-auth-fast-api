@@ -3,9 +3,8 @@ import logging
 from typing import AsyncGenerator, Optional
 
 from langchain_core.messages import HumanMessage
-from langgraph.checkpoint.memory import MemorySaver
-from langgraph.checkpoint.postgres import PostgresSaver
-from psycopg_pool import ConnectionPool
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from psycopg_pool import AsyncConnectionPool
 
 from app.agents.react_graph import create_graph
 from app.agents.tools import load_mcp_tools
@@ -18,7 +17,7 @@ _lock = asyncio.Lock()
 
 
 class Agent:
-    def __init__(self, checkpointer: MemorySaver, app) -> None:
+    def __init__(self, checkpointer: AsyncPostgresSaver, app) -> None:
         self._checkpointer = checkpointer
         self._app = app
 
@@ -27,12 +26,11 @@ class Agent:
         conn_str = settings.DATABASE_URL.replace(
             "postgresql+asyncpg://", "postgresql://")
 
-        loop = asyncio.get_event_loop()
-        pool = ConnectionPool(conninfo=conn_str, open=False)
-        await loop.run_in_executor(None, pool.open)
+        pool = AsyncConnectionPool(conninfo=conn_str, open=False)
+        await pool.open()
 
-        checkpointer = PostgresSaver(pool)
-        await loop.run_in_executor(None, checkpointer.setup)
+        checkpointer = AsyncPostgresSaver(pool)
+        await checkpointer.setup()
 
         tools = await load_mcp_tools()
         app = create_graph(
@@ -54,7 +52,7 @@ class Agent:
 
     async def init_chat(self, user_id: str, chat_id: str):
         config = self.get_config(user_id, chat_id)
-        self._app.update_state(config, {"messages": [], "tool_rounds": 0})
+        await self._app.aupdate_state(config, {"messages": [], "tool_rounds": 0})
 
     async def invoke(
         self, user_id: str, chat_id: str, user_message: Optional[str]
