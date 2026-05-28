@@ -40,8 +40,8 @@ from app.schemas.chat import (
     ChatResponse,
     ChatUpdate,
 )
-from app.services.ai_service import stream_agent_response
 from app.services.chat_service import ChatService
+from app.services.ai_service import init_chat, stream_agent_response
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +73,9 @@ async def create_chat(
 ) -> ChatResponse:
     """Create a new chat session."""
     service = ChatService(db)
-    return await service.create_chat(current_user.id, data)
+    chat = await service.create_chat(current_user.id, data)
+    await init_chat(current_user.id, str(chat.id))
+    return chat
 
 
 @router.get("/{chat_id}", response_model=ChatDetailResponse)
@@ -201,7 +203,7 @@ async def chat_websocket(
                 # Stream AI response token by token
                 full_response = ""
                 try:
-                    async for chunk in stream_agent_response(history, user_message):
+                    async for chunk in stream_agent_response(user_id_str, str(chat_id), user_message):
                         full_response += chunk
                         await websocket.send_json({"type": "chunk", "content": chunk})
                 except WebSocketDisconnect:

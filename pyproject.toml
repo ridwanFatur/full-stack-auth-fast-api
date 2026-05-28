@@ -21,4 +21,5 @@ dependencies = [
     "supabase>=2.10.0",
     "uvicorn[standard]>=0.48.0",
     "websockets>=13.0",
+    "langgraph-checkpoint-postgres>=3.1.0",
 ]
